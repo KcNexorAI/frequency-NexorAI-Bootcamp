@@ -80,12 +80,13 @@ button:hover {
 /* MUTE BUTTON */
 #muteBtn {
     position: absolute; top: 20px; right: 20px; 
-    width: 50px; height: 50px; padding: 0;
-    border-radius: 8px; z-index: 200;
-    font-size: 1.5rem; display: flex; align-items: center; justify-content: center;
+    width: 45px; height: 45px; padding: 0;
+    border-radius: 6px; z-index: 200;
+    font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
     background: rgba(155, 123, 44, 0.2);
     border: 1px solid rgba(155, 123, 44, 0.5);
     transition: all 0.3s ease;
+    margin: 0;
 }
 #muteBtn:hover {
     background: rgba(155, 123, 44, 0.4);
@@ -206,8 +207,8 @@ button:hover {
 <div id="gameContainer">
     <canvas id="gameCanvas" width="1280" height="720"></canvas>
     
-    <!-- Background Music Audio Element -->
-    <audio id="backgroundMusic" loop>
+    <!-- Background Music Audio Element with explicit autoplay handling -->
+    <audio id="backgroundMusic" preload="auto">
         <source src="music/background_music.mp3" type="audio/mpeg">
     </audio>
     
@@ -308,6 +309,7 @@ let currentWorld = 0;
 let unlockedWorlds = 0;
 let lives = 3;
 let isMuted = false;
+let audioInitialized = false;
 
 // --- Audio Elements ---
 const backgroundMusic = document.getElementById('backgroundMusic');
@@ -320,43 +322,52 @@ let audioCtx;
 function initAudio() { 
     if(!audioCtx) audioCtx = new AudioContextClass(); 
     if(audioCtx.state === 'suspended') audioCtx.resume(); 
+    audioInitialized = true;
 }
 
 function playTone(freq, duration=0.5) {
-  if (isMuted) return;
+  if (isMuted || !audioInitialized) return;
   
-  initAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  
-  // Enveloping
-  gain.gain.setValueAtTime(0, audioCtx.currentTime);
-  gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-  
-  osc.connect(gain); 
-  gain.connect(audioCtx.destination);
-  
-  osc.start(); 
-  osc.stop(audioCtx.currentTime + duration);
+  try {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    
+    // Enveloping
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    
+    osc.connect(gain); 
+    gain.connect(audioCtx.destination);
+    
+    osc.start(); 
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {
+    console.log('Tone playback error:', e);
+  }
 }
 
 function playHit() { 
-    if (isMuted) return;
+    if (isMuted || !audioInitialized) return;
     
-    initAudio(); 
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    try {
+      initAudio(); 
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    } catch(e) {
+      console.log('Hit sound error:', e);
+    }
 }
 
 // --- Mute Button Handler ---
@@ -374,7 +385,7 @@ function toggleMute() {
     muteBtn.textContent = '🔊';
     muteBtn.classList.remove('muted');
     // Resume background music if in map
-    if (state === 'MAP') {
+    if (state === 'MAP' && backgroundMusic.paused) {
       backgroundMusic.play().catch(err => console.log('Audio playback failed:', err));
     }
   }
@@ -469,8 +480,8 @@ function enterMap() {
   let sepiaVal = 100 - (unlockedWorlds * 20);
   canvas.style.filter = `sepia(${sepiaVal}%)`;
   
-  // Play background music
-  if (!isMuted) {
+  // Play background music (only after user interaction)
+  if (!isMuted && audioInitialized) {
     backgroundMusic.currentTime = 0;
     backgroundMusic.play().catch(err => console.log('Audio playback failed:', err));
   }
@@ -650,8 +661,6 @@ function update() {
       }
       else if (h.type === 'door') {
           h.t += 0.03; h.y = h.sy + Math.sin(h.t)*200;
-          // Doors are hard solids handled in X collision, but damage from top/bottom
-          // actually for simplicity let's just let X collision handle them exclusively to act as blockers
       }
       
       if (hRect && pRect.intersects(hRect)) {
