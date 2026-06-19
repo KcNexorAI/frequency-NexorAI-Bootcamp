@@ -59,7 +59,7 @@ p { font-size: 1.1rem; color: var(--grey); text-align: center; margin-top: 10px;
 /* GRAIN OVERLAY */
 .grain-overlay {
     position: absolute; inset: 0; pointer-events: none; opacity: 0.03; mix-blend-mode: overlay; 
-    background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxmaWx0ZXIgaWQ9Im5vaXNlRmlsdGVyIiB4PSIwIiB5PSIwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBudW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI25vaXNlRmlsdGVyKSIvPjwvc3ZnPg==');
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxmaWx0ZXIgaWQ9Im5vaXNlRmlsdGVyIiB4PSIwIiB5PSIwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj48ZmVUdXJ[...]
     z-index: 99;
 }
 
@@ -75,6 +75,29 @@ button:hover {
     border-color: var(--gold); color: var(--gold); 
     background: rgba(155, 123, 44, 0.1);
     box-shadow: 0 0 15px rgba(155, 123, 44, 0.4); 
+}
+
+/* MUTE BUTTON */
+#muteBtn {
+    position: absolute; top: 20px; right: 20px; 
+    width: 50px; height: 50px; padding: 0;
+    border-radius: 8px; z-index: 200;
+    font-size: 1.5rem; display: flex; align-items: center; justify-content: center;
+    background: rgba(155, 123, 44, 0.2);
+    border: 1px solid rgba(155, 123, 44, 0.5);
+    transition: all 0.3s ease;
+}
+#muteBtn:hover {
+    background: rgba(155, 123, 44, 0.4);
+    box-shadow: 0 0 15px rgba(155, 123, 44, 0.5);
+}
+#muteBtn.muted {
+    border-color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.2);
+}
+#muteBtn.muted:hover {
+    background: rgba(255, 107, 107, 0.4);
+    box-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
 }
 
 /* HUD LAYOUT */
@@ -183,6 +206,13 @@ button:hover {
 <div id="gameContainer">
     <canvas id="gameCanvas" width="1280" height="720"></canvas>
     
+    <!-- Background Music Audio Element -->
+    <audio id="backgroundMusic" loop>
+        <source src="music/background_music.mp3" type="audio/mpeg">
+    </audio>
+    
+    <button id="muteBtn" title="Toggle Sound">🔊</button>
+    
     <div class="grain-overlay"></div>
     
     <div id="hud" class="hidden">
@@ -243,7 +273,7 @@ button:hover {
             <div class="touch-btn" id="btnLeft" onpointerdown="keys.left=true; event.preventDefault();" onpointerup="keys.left=false" onpointerleave="keys.left=false" style="font-size: 1.5rem;">←</div>
             <div class="touch-btn" id="btnRight" onpointerdown="keys.right=true; event.preventDefault();" onpointerup="keys.right=false" onpointerleave="keys.right=false" style="font-size: 1.5rem;">→</div>
         </div>
-        <div class="touch-btn" id="btnJump" onpointerdown="keys.up=true; event.preventDefault();" onpointerup="keys.up=false" onpointerleave="keys.up=false" style="width: 100px; font-size: 0.9rem; letter-spacing: 2px; font-weight: 600;">JUMP</div>
+        <div class="touch-btn" id="btnJump" onpointerdown="keys.up=true; event.preventDefault();" onpointerup="keys.up=false" onpointerleave="keys.up=false" style="width: 100px; font-size: 0.9rem;">Jump</div>
     </div>
 </div>
 
@@ -262,7 +292,7 @@ const WORLDS = [
   { id: 1, name: "The Garden", text: "This was his favourite place to play.", bg: "#0F1A15", obst: 'wind_vines', audio: [293.66, 349.23, 440.00, 523.25] },
   { id: 2, name: "The Cassette Shop", text: "He recorded one tape. Never released it.", bg: "#362B1D", obst: 'rolling_tapes', audio: [329.63, 392.00, 493.88, 587.33, 659.25] },
   { id: 3, name: "The Studio Street", text: "He stood here once. Never went in.", bg: "#0D1121", obst: 'splash_doors', audio: [349.23, 440.00, 523.25, 659.25, 698.46, 880.00] },
-  { id: 4, name: "The Memorial Room", text: "She finished what he started.", bg: "#2B161A", obst: 'candles_garlands', audio: [392.00, 493.88, 587.33, 698.46, 783.99, 987.77, 1567.98] } /* Longer sustain on final handled in playback */
+  { id: 4, name: "The Memorial Room", text: "She finished what he started.", bg: "#2B161A", obst: 'candles_garlands', audio: [392.00, 493.88, 587.33, 698.46, 783.99, 987.77, 1567.98] }
 ];
 
 const MAP_NODES = [
@@ -277,6 +307,78 @@ let state = 'START'; // START, MAP, LEVEL, DEAD, WIN
 let currentWorld = 0;
 let unlockedWorlds = 0;
 let lives = 3;
+let isMuted = false;
+
+// --- Audio Elements ---
+const backgroundMusic = document.getElementById('backgroundMusic');
+backgroundMusic.volume = 0.3; // Set volume to 30%
+
+// --- Web Audio API Integration (for sound effects) ---
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function initAudio() { 
+    if(!audioCtx) audioCtx = new AudioContextClass(); 
+    if(audioCtx.state === 'suspended') audioCtx.resume(); 
+}
+
+function playTone(freq, duration=0.5) {
+  if (isMuted) return;
+  
+  initAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  
+  // Enveloping
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  
+  osc.connect(gain); 
+  gain.connect(audioCtx.destination);
+  
+  osc.start(); 
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playHit() { 
+    if (isMuted) return;
+    
+    initAudio(); 
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// --- Mute Button Handler ---
+document.getElementById('muteBtn').addEventListener('click', toggleMute);
+
+function toggleMute() {
+  isMuted = !isMuted;
+  const muteBtn = document.getElementById('muteBtn');
+  
+  if (isMuted) {
+    muteBtn.textContent = '🔇';
+    muteBtn.classList.add('muted');
+    backgroundMusic.pause();
+  } else {
+    muteBtn.textContent = '🔊';
+    muteBtn.classList.remove('muted');
+    // Resume background music if in map
+    if (state === 'MAP') {
+      backgroundMusic.play().catch(err => console.log('Audio playback failed:', err));
+    }
+  }
+}
 
 // --- Input Handling ---
 const keys = { left: false, right: false, up: false };
@@ -315,48 +417,6 @@ canvas.addEventListener('click', e => {
     }
   }
 });
-
-// --- Web Audio API Integration ---
-const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-let audioCtx;
-
-function initAudio() { 
-    if(!audioCtx) audioCtx = new AudioContextClass(); 
-    if(audioCtx.state === 'suspended') audioCtx.resume(); 
-}
-
-function playTone(freq, duration=0.5) {
-  initAudio();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  
-  osc.type = 'sine'; // Soft acoustic feel
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  
-  // Enveloping
-  gain.gain.setValueAtTime(0, audioCtx.currentTime);
-  gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-  
-  osc.connect(gain); 
-  gain.connect(audioCtx.destination);
-  
-  osc.start(); 
-  osc.stop(audioCtx.currentTime + duration);
-}
-
-function playHit() { 
-    initAudio(); 
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
-}
 
 // --- UI Management ---
 const els = {
@@ -408,6 +468,12 @@ function enterMap() {
   // Transition map sepia filter incrementally based on progress
   let sepiaVal = 100 - (unlockedWorlds * 20);
   canvas.style.filter = `sepia(${sepiaVal}%)`;
+  
+  // Play background music
+  if (!isMuted) {
+    backgroundMusic.currentTime = 0;
+    backgroundMusic.play().catch(err => console.log('Audio playback failed:', err));
+  }
 }
 
 // --- Platformer Physics & Logic ---
@@ -440,6 +506,9 @@ function enterLevel(id) {
   lives = 3;
   canvas.style.filter = 'none'; // Clear sepia during levels
   updateHUD();
+  
+  // Stop background music when entering level
+  backgroundMusic.pause();
   
   // Generator 
   platforms = []; hazards = [];
@@ -610,6 +679,7 @@ function handleDeath() {
   keys.left = false; keys.right = false; keys.up = false;
   if (lives <= 0) {
     state = 'DEAD';
+    backgroundMusic.pause();
     document.getElementById('msgTitle').innerText = "Game Over";
     document.getElementById('msgSubtitle').innerText = "You have run out of lives.";
     document.getElementById('msgBtn').innerText = "Restart";
@@ -634,6 +704,7 @@ let nextAction = () => {};
 
 function completeLevel() {
   state = 'WIN';
+  backgroundMusic.pause();
   if (currentWorld === unlockedWorlds) unlockedWorlds++;
   updateHUD();
   
